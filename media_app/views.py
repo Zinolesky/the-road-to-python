@@ -40,11 +40,15 @@ def media_gallery(request):
 def media_detail(request, pk):
     """
     Detailed player / view for a single multimedia asset.
-    Increments view count on access.
+    Increments view count on access (safely bypassed in read-only environments like Vercel).
     """
     item = get_object_or_404(MediaItem, pk=pk)
-    item.views_count += 1
-    item.save(update_fields=['views_count'])
+    try:
+        item.views_count += 1
+        item.save(update_fields=['views_count'])
+    except Exception:
+        # Gracefully ignore write errors in read-only environments (e.g., SQLite on Vercel)
+        pass
 
     related_items = MediaItem.objects.filter(media_type=item.media_type).exclude(pk=item.pk)[:4]
 
@@ -62,9 +66,12 @@ def upload_media(request):
     if request.method == 'POST':
         form = MediaItemForm(request.POST, request.FILES)
         if form.is_valid():
-            new_item = form.save()
-            messages.success(request, f"'{new_item.title}' was successfully uploaded!")
-            return redirect('media_detail', pk=new_item.pk)
+            try:
+                new_item = form.save()
+                messages.success(request, f"'{new_item.title}' was successfully uploaded!")
+                return redirect('media_detail', pk=new_item.pk)
+            except Exception:
+                messages.error(request, "Uploads are disabled in demonstration mode because this deployment runs on a read-only serverless filesystem.")
     else:
         form = MediaItemForm()
 
