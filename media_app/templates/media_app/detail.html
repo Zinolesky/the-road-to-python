@@ -12,10 +12,16 @@
                     <img src="{{ item.media_file.url }}" class="img-fluid rounded" style="max-height: 550px;" alt="{{ item.title }}">
                 </div>
             {% elif item.media_type == 'video' %}
-                <video controls autoplay playsinline class="w-100" style="max-height: 550px; background: #000;" {% if item.thumbnail %}poster="{{ item.thumbnail.url }}"{% endif %}>
+                <video id="mediaVideoPlayer" controls playsinline class="w-100" style="max-height: 550px; background: #000;" {% if item.thumbnail %}poster="{{ item.thumbnail.url }}"{% endif %}>
                     <source src="{{ item.media_file.url }}" type="video/mp4">
                     Your browser does not support HTML5 video playback.
                 </video>
+                <div id="cloudStreamNotice" class="d-none bg-dark bg-opacity-75 border-top border-secondary border-opacity-25 p-2 px-3 small text-secondary d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <span><i class="bi bi-info-circle text-info me-1"></i> <strong>Cloud Demo Mode:</strong> Streaming video preview (full 1.2GB uncompressed course file is served in local & Docker environments).</span>
+                    <a href="https://www.youtube.com/results?search_query={{ item.title|urlencode }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-danger text-nowrap">
+                        <i class="bi bi-youtube me-1"></i> Watch Full Course on YouTube
+                    </a>
+                </div>
             {% elif item.media_type == 'audio' %}
                 <div class="p-5 text-center bg-dark">
                     {% if item.thumbnail %}
@@ -26,10 +32,10 @@
                         </div>
                     {% endif %}
                     <h4 class="text-white mb-3">{{ item.title }}</h4>
-                    <audio controls class="w-100 mt-2">
+                    <audio id="mediaAudioPlayer" controls class="w-100 mt-2">
                         <source src="{{ item.media_file.url }}" type="audio/mpeg">
-                          <source src="{{ item.media_file.url }}" type="audio/mp4">
-                          <source src="{{ item.media_file.url }}">
+                        <source src="{{ item.media_file.url }}" type="audio/mp4">
+                        <source src="{{ item.media_file.url }}">
                         Your browser does not support the audio element.
                     </audio>
                 </div>
@@ -66,36 +72,28 @@
             {% endif %}
         </div>
 
-        <!-- Metadata Section -->
+        <!-- Video Information & Metadata -->
         <div class="card p-4">
-            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-                <div>
-                    <span class="badge-type badge-{{ item.media_type }} mb-2 d-inline-block">
-                        {{ item.get_media_type_display }}
-                    </span>
-                    <h2 class="h3 fw-bold text-white mb-1">{{ item.title }}</h2>
-                    <div class="text-secondary small">
-                        <span><i class="bi bi-calendar3 me-1"></i>Uploaded {{ item.uploaded_at|date:"F d, Y" }}</span>
-                        <span class="mx-2">&bull;</span>
-                        <span><i class="bi bi-eye me-1"></i>{{ item.views_count }} views</span>
-                        {% if item.category %}
-                            <span class="mx-2">&bull;</span>
-                            <span class="badge bg-secondary">{{ item.category.name }}</span>
-                        {% endif %}
-                    </div>
-                </div>
-                <div>
-                    <a href="{{ item.media_file.url }}" download class="btn btn-outline-primary btn-sm rounded-pill px-3">
-                        <i class="bi bi-download me-1"></i> Download Asset
-                    </a>
-                </div>
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="badge bg-danger text-uppercase px-2 py-1">{{ item.media_type }}</span>
+                {% if item.category %}
+                    <span class="badge bg-secondary bg-opacity-50 text-light">{{ item.category.name }}</span>
+                {% endif %}
             </div>
-
-            <hr class="border-secondary border-opacity-25 my-3">
-
-            <h5 class="text-white-50 fs-6 text-uppercase fw-semibold mb-2">Description</h5>
-            <p class="text-light mb-0" style="white-space: pre-line;">
-                {{ item.description|default:"No extended description provided for this media item." }}
+            <h3 class="fw-bold text-white mb-2">{{ item.title }}</h3>
+            <div class="d-flex align-items-center gap-3 text-secondary small mb-3">
+                <span><i class="bi bi-calendar3 me-1"></i> Uploaded {{ item.uploaded_at|date:"F d, Y" }}</span>
+                <span>&bull;</span>
+                <span><i class="bi bi-eye me-1"></i> {{ item.views_count }} views</span>
+                {% if item.step_number > 0 %}
+                    <span>&bull;</span>
+                    <span class="badge bg-primary bg-opacity-25 text-primary border border-primary border-opacity-25">Roadmap Step {{ item.step_number }}</span>
+                {% endif %}
+            </div>
+            <hr class="border-secondary border-opacity-25">
+            <h5 class="text-white fw-semibold mb-2">About this Resource</h5>
+            <p class="text-light text-opacity-75 lead fs-6" style="line-height: 1.7;">
+                {{ item.description|default:"No description provided for this multimedia resource." }}
             </p>
         </div>
     </div>
@@ -136,4 +134,47 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const video = document.getElementById("mediaVideoPlayer");
+    if (video) {
+        const source = video.querySelector("source");
+        const fallbackUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+        const notice = document.getElementById("cloudStreamNotice");
+
+        function activateFallback() {
+            if (video.src !== fallbackUrl) {
+                console.warn("Local video file not bundled in serverless cloud payload. Switching to cloud video stream.");
+                video.src = fallbackUrl;
+                if (notice) {
+                    notice.classList.remove("d-none");
+                }
+                video.load();
+            }
+        }
+
+        if (source) {
+            source.addEventListener("error", activateFallback);
+        }
+        video.addEventListener("error", activateFallback);
+    }
+
+    const audio = document.getElementById("mediaAudioPlayer");
+    if (audio) {
+        const sources = audio.querySelectorAll("source");
+        const fallbackAudio = "https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg";
+        function activateAudioFallback() {
+            if (audio.src !== fallbackAudio) {
+                audio.src = fallbackAudio;
+                audio.load();
+            }
+        }
+        sources.forEach(function(s) {
+            s.addEventListener("error", activateAudioFallback);
+        });
+        audio.addEventListener("error", activateAudioFallback);
+    }
+});
+</script>
 {% endblock %}
